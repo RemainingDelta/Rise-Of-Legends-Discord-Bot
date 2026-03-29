@@ -6,3 +6,5 @@ certifi
 requests
 requests-cache
 beautifulsoup4
+deep_translator
+langdetect
