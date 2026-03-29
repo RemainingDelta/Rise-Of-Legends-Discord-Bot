@@ -25,12 +25,18 @@ async def on_ready():
     else:
         print("❌ MongoDB Connection Failed (Check .env and MONGO_URI)")
 
-    # Load tourney cog
+    # Load tourney system (non-cog pattern — registers commands directly)
+    from features.tourney.tourney_commands import (
+        setup_tourney_commands,
+        restore_tourney_panels,
+    )
+
     try:
-        await bot.load_extension("features.tourney.tourney_commands")
+        setup_tourney_commands(bot)
         print("✅ Loaded Feature: Tournaments")
+        await restore_tourney_panels(bot)
     except Exception as e:
-        print(f"❌ Error loading tourney: {e}")
+        print(f"⚠️ Tourney Error: {e}")
 
     # Sync slash commands
     try:
