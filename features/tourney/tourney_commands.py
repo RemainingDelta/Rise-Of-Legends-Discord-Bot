@@ -1006,7 +1006,6 @@ class BlacklistGroup(app_commands.Group):
 
 
 def setup_tourney_commands(bot: commands.Bot):
-
     @bot.command(name="close", aliases=["c"])
     async def close_command(ctx: commands.Context):
         """Close a tourney ticket (staff only)."""
@@ -1059,7 +1058,10 @@ def setup_tourney_commands(bot: commands.Bot):
 
         # Ensure closed categories deny send_messages for @everyone
         # (R7 has this pre-configured on the server; we enforce it here)
-        for closed_cat_id in (TOURNEY_CLOSED_CATEGORY_ID, PRE_TOURNEY_CLOSED_CATEGORY_ID):
+        for closed_cat_id in (
+            TOURNEY_CLOSED_CATEGORY_ID,
+            PRE_TOURNEY_CLOSED_CATEGORY_ID,
+        ):
             closed_cat = guild.get_channel(closed_cat_id)
             if isinstance(closed_cat, discord.CategoryChannel):
                 await closed_cat.set_permissions(
@@ -1760,7 +1762,9 @@ def setup_tourney_commands(bot: commands.Bot):
     @app_commands.describe(m_id="The numeric Matcherino ID (e.g., 180454)")
     async def set_matcherino(interaction: discord.Interaction, m_id: str):
         if not is_staff(interaction.user):
-            await interaction.response.send_message("❌ Permission denied.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Permission denied.", ephemeral=True
+            )
             return
         active_session = await get_active_tourney_session()
         if not active_session:
@@ -1770,77 +1774,146 @@ def setup_tourney_commands(bot: commands.Bot):
             return
         clean_id = "".join(filter(str.isdigit, m_id))
         if not clean_id:
-            await interaction.response.send_message("❌ Please provide a numeric ID.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Please provide a numeric ID.", ephemeral=True
+            )
             return
         await update_matcherino_id(active_session["_id"], clean_id)
-        await interaction.response.send_message(f"✅ Active Matcherino ID set to: `{clean_id}`", ephemeral=True)
+        await interaction.response.send_message(
+            f"✅ Active Matcherino ID set to: `{clean_id}`", ephemeral=True
+        )
 
-    @app_commands.command(name="tourney-test-mode", description="Toggle 100 tickets/0.1s cooldown for testing.")
-    @app_commands.describe(enabled="True to enable test mode, False to return to production.")
+    @app_commands.command(
+        name="tourney-test-mode",
+        description="Toggle 100 tickets/0.1s cooldown for testing.",
+    )
+    @app_commands.describe(
+        enabled="True to enable test mode, False to return to production."
+    )
     async def tourney_test_mode(interaction: discord.Interaction, enabled: bool):
         if not is_staff(interaction.user):
-            await interaction.response.send_message("❌ Staff permissions required.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Staff permissions required.", ephemeral=True
+            )
             return
         from features import config
-        config.TOURNEY_TEST_MODE = enabled
-        status = "ENABLED 🧪 (100 tickets, 0.1s cooldown)" if enabled else "DISABLED ✅ (Production limits)"
-        await interaction.response.send_message(f"📢 Tournament Test Mode is now **{status}**.")
 
-    @app_commands.command(name="match-info", description="Display roster for a specific match.")
+        config.TOURNEY_TEST_MODE = enabled
+        status = (
+            "ENABLED 🧪 (100 tickets, 0.1s cooldown)"
+            if enabled
+            else "DISABLED ✅ (Production limits)"
+        )
+        await interaction.response.send_message(
+            f"📢 Tournament Test Mode is now **{status}**."
+        )
+
+    @app_commands.command(
+        name="match-info", description="Display roster for a specific match."
+    )
     @app_commands.describe(match_num="The Match Number from the bracket (e.g. 189)")
     async def match_info(interaction: discord.Interaction, match_num: int):
         if not is_staff(interaction.user):
-            await interaction.response.send_message("❌ Staff permissions required.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Staff permissions required.", ephemeral=True
+            )
             return
         session = await get_active_tourney_session()
         if not session or not session.get("matcherino_id"):
-            await interaction.response.send_message("❌ No active Matcherino ID set. Use `/set-matcherino` first.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ No active Matcherino ID set. Use `/set-matcherino` first.",
+                ephemeral=True,
+            )
             return
         await interaction.response.defer()
         m_id = session["matcherino_id"]
         bracket_url = f"https://matcherino.com/tournaments/{m_id}/bracket"
         topic_team_name = None
-        if isinstance(interaction.channel, discord.TextChannel) and interaction.channel.topic:
+        if (
+            isinstance(interaction.channel, discord.TextChannel)
+            and interaction.channel.topic
+        ):
             team_res = re.search(r"team:(.*?)(?:\||$)", interaction.channel.topic)
             if team_res:
                 topic_team_name = team_res.group(1).strip() or None
-        match_data = fetch_ticket_context(bracket_url, match_num, topic_team_name=topic_team_name)
+        match_data = fetch_ticket_context(
+            bracket_url, match_num, topic_team_name=topic_team_name
+        )
         if match_data.get("status") != "success":
             await interaction.followup.send(f"❌ **Error:** {match_data.get('error')}")
             return
         is_mismatch = match_data.get("team_name_mismatch", False)
         best_match_team = match_data.get("team_name_best_match")
-        embed = discord.Embed(title=f"📊 Matcherino Data: Match #{match_num}", color=discord.Color.red() if is_mismatch else discord.Color.gold())
-        embed.add_field(name="Match Status", value=f"`{match_data['match_status'].upper()}`", inline=True)
+        embed = discord.Embed(
+            title=f"📊 Matcherino Data: Match #{match_num}",
+            color=discord.Color.red() if is_mismatch else discord.Color.gold(),
+        )
+        embed.add_field(
+            name="Match Status",
+            value=f"`{match_data['match_status'].upper()}`",
+            inline=True,
+        )
         embed.add_field(name="\u200b", value="\u200b", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
         team_a = match_data["team_a"]
         team_b = match_data["team_b"]
-        players_a = "\n".join([f"• {p}" for p in team_a["players"]]) or "• *No players found*"
-        players_b = "\n".join([f"• {p}" for p in team_b["players"]]) or "• *No players found*"
-        embed.add_field(name=f"🔵 {team_a['name']} (Score: {team_a['score']})", value=f"**Matcherino Names:**\n{players_a}", inline=True)
+        players_a = (
+            "\n".join([f"• {p}" for p in team_a["players"]]) or "• *No players found*"
+        )
+        players_b = (
+            "\n".join([f"• {p}" for p in team_b["players"]]) or "• *No players found*"
+        )
+        embed.add_field(
+            name=f"🔵 {team_a['name']} (Score: {team_a['score']})",
+            value=f"**Matcherino Names:**\n{players_a}",
+            inline=True,
+        )
         embed.add_field(name="⚔️", value="\u200b", inline=True)
-        embed.add_field(name=f"🔴 {team_b['name']} (Score: {team_b['score']})", value=f"**Matcherino Names:**\n{players_b}", inline=True)
+        embed.add_field(
+            name=f"🔴 {team_b['name']} (Score: {team_b['score']})",
+            value=f"**Matcherino Names:**\n{players_b}",
+            inline=True,
+        )
         if is_mismatch:
             warning_text = "The team name in this ticket does not closely match either team in the bracket for this match."
             if topic_team_name:
                 warning_text += f"\nTeam entered: `{topic_team_name}`"
-            warning_text += "\nUse `/set-ticket-match` to correct the match number or team name."
-            embed.add_field(name="⚠️ Team name / Match number Mismatch", value=warning_text, inline=False)
+            warning_text += (
+                "\nUse `/set-ticket-match` to correct the match number or team name."
+            )
+            embed.add_field(
+                name="⚠️ Team name / Match number Mismatch",
+                value=warning_text,
+                inline=False,
+            )
         elif topic_team_name and best_match_team:
-            embed.add_field(name="Detected Team", value=f"```\n{best_match_team}\n```", inline=False)
-        embed.set_footer(text=f"Matcherino ID: {m_id} | Tourney Admin: {interaction.user.name}")
+            embed.add_field(
+                name="Detected Team", value=f"```\n{best_match_team}\n```", inline=False
+            )
+        embed.set_footer(
+            text=f"Matcherino ID: {m_id} | Tourney Admin: {interaction.user.name}"
+        )
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="match-history", description="View the standardized tournament run of teams in a matchup.")
-    @app_commands.describe(match_num="The visual match number from the bracket (e.g. 189)")
+    @app_commands.command(
+        name="match-history",
+        description="View the standardized tournament run of teams in a matchup.",
+    )
+    @app_commands.describe(
+        match_num="The visual match number from the bracket (e.g. 189)"
+    )
     async def match_history(interaction: discord.Interaction, match_num: int):
         if not is_staff(interaction.user):
-            await interaction.response.send_message("❌ Staff permissions required.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Staff permissions required.", ephemeral=True
+            )
             return
         session = await get_active_tourney_session()
         if not session or not session.get("matcherino_id"):
-            await interaction.response.send_message("❌ No active Matcherino ID set. Use `/set-matcherino` first.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ No active Matcherino ID set. Use `/set-matcherino` first.",
+                ephemeral=True,
+            )
             return
         await interaction.response.defer()
         m_id = session["matcherino_id"]
@@ -1849,55 +1922,113 @@ def setup_tourney_commands(bot: commands.Bot):
         if data.get("status") != "success":
             await interaction.followup.send(f"❌ **Error:** {data.get('error')}")
             return
-        embed = discord.Embed(title=f"📜 Match History: Match #{match_num}", color=discord.Color.blue(), timestamp=discord.utils.utcnow())
+        embed = discord.Embed(
+            title=f"📜 Match History: Match #{match_num}",
+            color=discord.Color.blue(),
+            timestamp=discord.utils.utcnow(),
+        )
         team_a_name = data["team_a"]["name"]
         team_b_name = data["team_b"]["name"]
         hist_a = "\n".join(data.get("team_a_history", []))
         hist_b = "\n".join(data.get("team_b_history", []))
-        embed.add_field(name=f"🔵 {team_a_name}", value=hist_a if hist_a else "*No previous matches (First Round)*", inline=False)
-        embed.add_field(name=f"🔴 {team_b_name}", value=hist_b if hist_b else "*No previous matches (First Round)*", inline=False)
+        embed.add_field(
+            name=f"🔵 {team_a_name}",
+            value=hist_a if hist_a else "*No previous matches (First Round)*",
+            inline=False,
+        )
+        embed.add_field(
+            name=f"🔴 {team_b_name}",
+            value=hist_b if hist_b else "*No previous matches (First Round)*",
+            inline=False,
+        )
         embed.set_footer(text=f"Matcherino ID: {m_id}")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="set-ticket-match", description="STAFF ONLY: Update match # or team name for this specific ticket.")
-    @app_commands.describe(match_num="The correct visual match number (e.g., 42)", team_name="The correct Matcherino team name for this ticket")
-    async def set_ticket_match(interaction: discord.Interaction, match_num: int = None, team_name: str = None):
+    @app_commands.command(
+        name="set-ticket-match",
+        description="STAFF ONLY: Update match # or team name for this specific ticket.",
+    )
+    @app_commands.describe(
+        match_num="The correct visual match number (e.g., 42)",
+        team_name="The correct Matcherino team name for this ticket",
+    )
+    async def set_ticket_match(
+        interaction: discord.Interaction, match_num: int = None, team_name: str = None
+    ):
         if not is_staff(interaction.user):
-            await interaction.response.send_message("❌ Staff permissions required.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Staff permissions required.", ephemeral=True
+            )
             return
         channel = interaction.channel
-        if not isinstance(channel, discord.TextChannel) or "ticket-" not in channel.name:
-            await interaction.response.send_message("❌ This command must be used inside a ticket channel.", ephemeral=True)
+        if (
+            not isinstance(channel, discord.TextChannel)
+            or "ticket-" not in channel.name
+        ):
+            await interaction.response.send_message(
+                "❌ This command must be used inside a ticket channel.", ephemeral=True
+            )
             return
         if match_num is None and team_name is None:
-            await interaction.response.send_message("⚠️ Provide at least one field to update.", ephemeral=True)
+            await interaction.response.send_message(
+                "⚠️ Provide at least one field to update.", ephemeral=True
+            )
             return
         await interaction.response.defer()
         topic = channel.topic or ""
         updates = []
         if match_num is not None:
-            topic = re.sub(r"bracket:[^|]+", f"bracket:{match_num}", topic) if "bracket:" in topic else f"{topic}|bracket:{match_num}"
+            topic = (
+                re.sub(r"bracket:[^|]+", f"bracket:{match_num}", topic)
+                if "bracket:" in topic
+                else f"{topic}|bracket:{match_num}"
+            )
             updates.append(f"Match Number: **#{match_num}**")
         if team_name is not None:
-            topic = re.sub(r"team:[^|]+", f"team:{team_name}", topic) if "team:" in topic else f"{topic}|team:{team_name}"
+            topic = (
+                re.sub(r"team:[^|]+", f"team:{team_name}", topic)
+                if "team:" in topic
+                else f"{topic}|team:{team_name}"
+            )
             updates.append(f"Team Name: **{team_name}**")
         try:
-            edit_task = asyncio.create_task(channel.edit(topic=topic, reason=f"Details updated by {interaction.user.name}"))
+            edit_task = asyncio.create_task(
+                channel.edit(
+                    topic=topic, reason=f"Details updated by {interaction.user.name}"
+                )
+            )
             try:
                 await asyncio.wait_for(asyncio.shield(edit_task), timeout=2.0)
             except asyncio.TimeoutError:
                 edit_task.cancel()
-                await interaction.followup.send(embed=discord.Embed(title="🚫 Discord Rate Limit Hit", description="Discord allows only **2 channel edits every 10 minutes**.\n\nThe bot has **cancelled** this update to avoid hanging for 10 minutes. Please wait a few minutes and try again.", color=discord.Color.red()))
+                await interaction.followup.send(
+                    embed=discord.Embed(
+                        title="🚫 Discord Rate Limit Hit",
+                        description="Discord allows only **2 channel edits every 10 minutes**.\n\nThe bot has **cancelled** this update to avoid hanging for 10 minutes. Please wait a few minutes and try again.",
+                        color=discord.Color.red(),
+                    )
+                )
                 return
             update_list = "\n".join([f"✅ {item}" for item in updates])
-            await interaction.followup.send(embed=discord.Embed(title="⚙️ Ticket Details Adjusted", description=f"Changes applied successfully:\n\n{update_list}\n\nThe live scoreboard will update in the next 1-minute cycle.", color=discord.Color.green()))
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="⚙️ Ticket Details Adjusted",
+                    description=f"Changes applied successfully:\n\n{update_list}\n\nThe live scoreboard will update in the next 1-minute cycle.",
+                    color=discord.Color.green(),
+                )
+            )
         except Exception as e:
             await interaction.followup.send(f"❌ Failed to update channel: {e}")
 
-    @app_commands.command(name="tourney-progress", description="STAFF ONLY: Real-time tournament health check.")
+    @app_commands.command(
+        name="tourney-progress",
+        description="STAFF ONLY: Real-time tournament health check.",
+    )
     async def tourney_progress(interaction: discord.Interaction):
         if not is_staff(interaction.user):
-            await interaction.response.send_message("❌ Permission denied.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Permission denied.", ephemeral=True
+            )
             return
         await interaction.response.defer()
         session = await get_active_tourney_session()
@@ -1916,7 +2047,9 @@ def setup_tourney_commands(bot: commands.Bot):
         duration = discord.utils.utcnow() - start_time
         hours, mins = divmod(int(duration.total_seconds()), 3600)
         mins, _ = divmod(mins, 60)
-        embed = discord.Embed(title="📊 Tournament Progress Report", color=discord.Color.gold())
+        embed = discord.Embed(
+            title="📊 Tournament Progress Report", color=discord.Color.gold()
+        )
         embed.description = f"**⏱️ Total Duration:** `{hours}h {mins}m` | **📈 Completion:** `{data['completion_pct']}%` ({data['closed']}/{data['total']})"
         remaining_matches = max(0, data["total"] - data["closed"])
         tournament_complete = data["completion_pct"] >= 100 or remaining_matches == 0
@@ -1924,16 +2057,32 @@ def setup_tourney_commands(bot: commands.Bot):
             path_text = "🏆 **Tournament Over!**"
         else:
             rounds_left = max(0, data["max_round"] - data["dominant_round"])
-            path_text = f"{rounds_left} rounds remaining" if rounds_left > 0 else "🏆 **Finals in progress!**"
-        active_matches_text = "No matches remaining" if tournament_complete else f"{data['active_count']} Currently Playable"
-        embed.add_field(name="🏆 Bracket Status", value=f"• **Dominant Round:** Round {data['dominant_round']}\n• **Path to Finals:** {path_text}\n• **Active Matches:** {active_matches_text}", inline=False)
+            path_text = (
+                f"{rounds_left} rounds remaining"
+                if rounds_left > 0
+                else "🏆 **Finals in progress!**"
+            )
+        active_matches_text = (
+            "No matches remaining"
+            if tournament_complete
+            else f"{data['active_count']} Currently Playable"
+        )
+        embed.add_field(
+            name="🏆 Bracket Status",
+            value=f"• **Dominant Round:** Round {data['dominant_round']}\n• **Path to Finals:** {path_text}\n• **Active Matches:** {active_matches_text}",
+            inline=False,
+        )
         if data["bottlenecks"]:
             bn_text = ""
             for bn in data["bottlenecks"][:5]:
                 bn_text += f"**#{bn['id']}** (Round {bn['round']}) | {bn['team_a']} vs {bn['team_b']} ({bn['score_a']}-{bn['score_b']})\n"
             embed.add_field(name="⚠️ Bottleneck Matches", value=bn_text, inline=False)
         else:
-            embed.add_field(name="⚠️ Bottleneck Matches", value="✅ All playable matches are current with the dominant round.", inline=False)
+            embed.add_field(
+                name="⚠️ Bottleneck Matches",
+                value="✅ All playable matches are current with the dominant round.",
+                inline=False,
+            )
         embed.set_footer(text=f"Matcherino ID: {m_id} | Staff: {interaction.user.name}")
         await interaction.followup.send(embed=embed)
 
@@ -1986,8 +2135,16 @@ def setup_tourney_commands(bot: commands.Bot):
 async def restore_tourney_panels(bot: commands.Bot):
     """On startup, repost any active support panels so buttons remain functional after a restart."""
     panels = [
-        (TOURNEY_SUPPORT_CHANNEL_ID, "🎟️ Tournament Support Ticket", TourneyOpenTicketView),
-        (PRE_TOURNEY_SUPPORT_CHANNEL_ID, "📩 Pre-Tournament Support", PreTourneyOpenTicketView),
+        (
+            TOURNEY_SUPPORT_CHANNEL_ID,
+            "🎟️ Tournament Support Ticket",
+            TourneyOpenTicketView,
+        ),
+        (
+            PRE_TOURNEY_SUPPORT_CHANNEL_ID,
+            "📩 Pre-Tournament Support",
+            PreTourneyOpenTicketView,
+        ),
     ]
 
     for channel_id, embed_title, ViewClass in panels:
